@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+	<script type="text/javascript" th:fragment="javascript">
+		$(document).ready(function() { // se ejecuta cuando el documento HTML ha sido completamente cargado y listo para manipularse.
+
+			$("#buscar_producto").autocomplete({ // cuando el usuario ingresa texto en el campo de búsqueda, se realiza una solicitud AJAX para obtener las sugerencias de autocompletado.
+
+				source : function(request, response) {
+					$.ajax({
+						url : "/factura/cargar-productos/" + request.term, // la URL especificada indica dónde se enviará la solicitud AJAX y request.term es el término de búsqueda ingresado por el usuario.
+						dataType : "json", // se especifica que se espera una respuesta en formato JSON
+						data : {
+							term : request.term // Se envía el término de búsqueda como datos
+						},
+						success : function(data) { // si la solicitud AJAX tiene éxito, se ejecuta esta función.
+							response($.map(data, function(item) { // para mostrar las sugerencias de autocompletado en función de los datos obtenidos. >>
+								return { //  En este caso, se utiliza map() para transformar los datos obtenidos en un formato adecuado y se pasan a la función response() y muestra las sugerencias al usuario.
+									value : item.id, // se crea un objeto para cada elemento en los datos recibidos.
+									label : item.nombre, // Estas propiedades se utilizarán para mostrar y seleccionar los elementos del autocompletado.
+									precio : item.precio,
+								};
+							}));
+						},
+					});
+				},
+				select : function(event, ui) { // se ejecuta cuando el usuario selecciona un elemento de la lista de autocompletado.
+					//$("#buscar_producto").val(ui.item.label);
+
+					if(itemsHelper.hasProducto(ui.item.value)){ // si el producto existe incrementamos la cantidad
+						itemsHelper.incrementaCantidad(ui.item.value, ui.item.precio);
+						return false;
+					}
+					
+					var linea = $("#plantillaItemsFactura").html();
+
+					linea = linea.replace(/{ID}/g, ui.item.value);
+					linea = linea.replace(/{NOMBRE}/g, ui.item.label);
+					linea = linea.replace(/{PRECIO}/g, ui.item.precio);
+
+					$("#cargarItemProductos tbody").append(linea);
+					itemsHelper.calcularImporte(ui.item.value, ui.item.precio, 1);
+
+					return false;
+				}
+			});
+
+			$("form").submit(function(){ // cuando se haga submit eliminará la plantilla
+				$("#plantillaItemsFactura").remove();
+				return;
+			});
+
+		});
+		
+		var itemsHelper = {
+				calcularImporte: function(id, precio, cantidad){ // calcular el importe multiplicando el precio por la cantidad de un elemento identificado por su id
+					$("#total_importe_" + id).html(parseInt(precio) * parseInt(cantidad)); 
+					this.calcularGranTotal();
+				},
+				hasProducto: function(id){
+					
+					var resultado = false;
+					
+					$('input[name="item_id[]"]').each(function(){ // Recorre todos los elementos <input> con el atributo name igual a "item_id[]"
+						if(parseInt(id) == parseInt($(this).val()) ){ // vamos a preguntar si el id que se pasa por args es igual al valor
+							resultado = true;
+						}
+					});
+					
+					return resultado;
+				},
+				incrementaCantidad: function(id, precio){
+					var cantidad = $("#cantidad_" + id).val() ? parseInt($("#cantidad_" + id).val()) : 0; // Si el valor existe se convierte en un entero pero si el valor no existe, se establece en 0
+					$("#cantidad_" + id).val(++cantidad);
+					this.calcularImporte(id, precio, cantidad);
+				},
+				eliminarLineaFactura: function(id){
+					$("#row_" + id).remove();
+					this.calcularGranTotal();
+				},
+				calcularGranTotal: function(){
+					var total = 0;
+					
+					$('span[id^="total_importe_"]').each(function(){
+						total += parseInt($(this).html());
+					});
+					
+					$('#gran_total').html(total);
+				}
+		}
+	</script>
+</body>
+</html>
